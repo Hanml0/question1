@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>情侣问答</title>
+    <!-- 引入 FontAwesome 图标库（用于结果页的奖杯和哭脸图标） -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <style>
+        /* 1. 基础重置与全局防卡设置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            /* 关闭所有元素的过渡动画，保证点击瞬间响应 */
+            transition: none !important; 
+        }
+        
+        body {
+            background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+            /* 防止页面出现横向滚动条导致重绘卡顿 */
+            overflow-x: hidden; 
+        }
+
+        /* 2. 答题区容器 */
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(233, 30, 99, 0.08);
+            /* 隐藏容器，通过 JS 控制显示，防止初始加载闪烁 */
+            display: none; 
+        }
+
+        /* 3. 结果页容器（默认显示） */
+        .result-box {
+            max-width: 400px;
+            margin: 60px auto;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 30px 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            display: block;
+        }
+
+        h1 {
+            text-align: center;
+            color: #e91e63;
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 20px;
+        }
+
+        .q {
+            font-size: 16px;
+            margin: 15px 0;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            border: 1px solid #f48fb1;
+            border-radius: 8px;
+            outline: none;
+            /* 点击输入框时背景变粉，提供视觉反馈 */
+            background: #fff;
+        }
+        
+        input[type="text"]:focus {
+            background: #fce4ec;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #555;
+            background: #fafafa;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        .radio-item input {
+            margin-right: 8px;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            font-size: 16px;
+            color: #fff;
+            background: #e91e63;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:active {
+            opacity: 0.8; /* 点击瞬间变色，提升响应感 */
+        }
+
+        /* 4. 结果页专属样式 */
+        .result-icon {
+            font-size: 50px;
+            margin-bottom: 15px;
+        }
+        
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .result-text {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .retry-btn {
+            margin-top: 20px;
+            background: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 结果展示区 -->
+    <div class="result-box" id="resultBox">
+        <div class="result-icon" id="resultIcon"></div>
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-text" id="resultText"></div>
+        <button class="retry-btn" onclick="startQuiz()">重新开始</button>
+    </div>
+
+    <!-- 答题区域 (默认隐藏) -->
+    <div class="container" id="quizBox">
+        <h1>💌 小韩的问答挑战 💌</h1>
+        <div class="subtitle">认真作答哦，决定了你的最终奖励！</div>
+        
+        <div class="q" id="questionText">题目加载中...</div>
+        
+        <div id="inputArea">
+            <!-- 动态生成输入框或单选框 -->
+        </div>
+        
+        <button id="nextBtn" onclick="nextQuestion()">下一题</button>
+    </div>
+
+    <script>
+        // ================= 核心逻辑 =================
+        
+        // 1. 题库数据（严格按照你的流程图整理）
+        const questions = [
+            {
+                q: "你的男朋友是？（填空题）",
+                type: "text",
+                correct: "韩牧凌",
+                errorMsg: "这都敢错，你不要命啦！"
+            },
+            {
+                q: "你男朋友的生日是？（单选题）",
+                type: "radio",
+                options: ["A.2004年06月24日", "B.2004年05月07日", "C.我不知道", "D.我说几号就几号"],
+                correctIndex: 0, // A选项
+                errorMsg: {
+                    1: "农历四月不会算你过吧！",
+                    2: "分手!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+                    3: "母老虎可以理解算你过"
+                }
+            },
+            {
+                q: "小韩的表白时间是?(填空题)",
+                type: "text",
+                correct: "2025年12月24日",
+                errorMsg: "正确答案是2023年12月24日哦！"
+            },
+            {
+                q: "恋爱纪念日是?(填空题)",
+                type: "text",
+                correct: "2026年01月05日",
+                errorMsg: "正确答案是2026年01月05日啦！"
+            },
+            {
+                q: "最后一题：小韩同学的幸运数字是?(单选题)",
+                type: "radio",
+                options: ["A.17", "B.30", "C.13", "D.19"],
+                correctIndex: [0, 2, 3], // A/C/D 都是对的
+                errorMsg: {
+                    1: "勉强算你对！谁说幸运数字只能有一个了",
+                    3: "勉强算你对！谁说幸运数字只能有一个了"
+                }
+            }
+        ];
+
+        let currentIndex = 0; // 当前是第几题
+        let isAnswered = false; // 记录这道题有没有回答过
+        let score = 0; // 记录答对了几题
+
+        // 页面加载完毕后，直接开始第一题
+        window.onload = startQuiz;
+
+        // 点击“重新开始”
+        function startQuiz() {
+            currentIndex = 0;
+            score = 0;
+            isAnswered = false;
+            
+            // 切换显示区域
+            document.getElementById('resultBox').style.display = 'none';
+            document.getElementById('quizBox').style.display = 'block';
+            
+            showQuestion();
+        }
+
+        // 渲染当前题目
+        function showQuestion() {
+            const q = questions[currentIndex];
+            document.getElementById('questionText').innerText = q.q;
+            const inputArea = document.getElementById('inputArea');
+            inputArea.innerHTML = ''; // 清空上一题的内容
+            
+            isAnswered = false; // 重置回答状态
+
+            if (q.type === "text") {
+                // 如果是填空题
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = '请输入答案...';
+                inputArea.appendChild(input);
+                
+                // 绑定回车键提交事件
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && !isAnswered) {
+                        checkAnswer();
+                    }
+                });
+
+            } else if (q.type === "radio") {
+                // 如果是单选题
+                const radioGroup = document.createElement('div');
+                radioGroup.className = 'radio-group';
+                
+                q.options.forEach((option, index) => {
+                    const item = document.createElement('label');
+                    item.className = 'radio-item';
+                    
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.name = 'answer';
+                    input.value = index;
+                    
+                    item.appendChild(input);
+                    item.appendChild(document.createTextNode(option));
+                    radioGroup.appendChild(item);
+                });
+                
+                inputArea.appendChild(radioGroup);
+            }
+
+            // 每次切换题目时，强制让“下一题”按钮获取焦点，防止页面底部空白导致的误触卡顿
+            setTimeout(() => {
+                document.getElementById('nextBtn').focus();
+            }, 50);
+        }
+
+        // 点击“下一题”时触发
+        function nextQuestion() {
+            if (!isAnswered) {
+                checkAnswer();
+            }
+        }
+
+        // 核对答案逻辑
+        function checkAnswer() {
+            if (isAnswered) return; // 防止重复点击
+            isAnswered = true;
+
+            const q = questions[currentIndex];
+            let isCorrect = false;
+            let selectedValue = null;
+
+            if (q.type === "text") {
+                const inputVal = document.querySelector('input[type="text"]').value.trim();
+                if (inputVal === q.correct) {
+                    isCorrect = true;
+                }
+            } else if (q.type === "radio") {
+                const selected = document.querySelector('input[name="answer"]:checked');
+                if (selected) {
+                    selectedValue = parseInt(selected.value);
+                    // 第五题是多个正确选项，用数组判断
+                    if (Array.isArray(q.correctIndex)) {
+                        if (q.correctIndex.includes(selectedValue)) {
+                            isCorrect = true;
+                        }
+                    } else {
+                        if (selectedValue === q.correctIndex) {
+                            isCorrect = true;
+                        }
+                    }
+                }
+            }
+
+            // 判断对错并弹窗提示
+            if (isCorrect) {
+                score++;
+                alert("正确！");
+            } else {
+                let msg = "答错了哦！";
+                if (q.type === "radio" && q.errorMsg && selectedValue !== null) {
+                    msg = q.errorMsg[selectedValue] || "再想想吧~";
+                } else if (q.errorMsg) {
+                    msg = q.errorMsg;
+                }
+                alert(msg);
+            }
+
+            // 延迟 300 毫秒跳转下一题（为了让 alert 弹窗先弹出来，且不阻塞 UI 线程）
+            setTimeout(() => {
+                currentIndex++;
+                if (currentIndex < questions.length) {
+                    showQuestion(); // 还有题，继续出
+                } else {
+                    showFinalResult(); // 没题了，展示结果分析
+                }
+            }, 300);
+        }
+
+        // 展示最终结果（严格对应流程图最后一节）
+        function showFinalResult() {
+            document.getElementById('quizBox').style.display = 'none';
+            document.getElementById('resultBox').style.display = 'block';
+            
+            const iconEl = document.getElementById('resultIcon');
+            const titleEl = document.getElementById('resultTitle');
+            const textEl = document.getElementById('resultText');
+
+            // 1. 全对 (5/5)
+            if (score === 5) {
+                iconEl.innerHTML = '<i class="fa-solid fa-trophy"></i>';
+                iconEl.style.color = '#ffc107';
+                titleEl.innerText = '🎉 一等奖抽奖机会 🎉';
+                titleEl.style.color = '#e91e63';
+                textEl.innerText = '太棒啦！五题全对，获得了一等奖抽奖机会！';
+            } 
+            // 2. 全错 (0/5)
+            else if (score === 0) {
+                iconEl.innerHTML = '<i class="fa-solid fa-face-sad-tear"></i>';
+                iconEl.style.color = '#6c757d';
+                titleEl.innerText = '😭 转盘惩罚 😭';
+                titleEl.style.color = '#6c757d';
+                textEl.innerText = '哎呀，一题都没对，准备好接受转盘惩罚了吗？';
+            } 
+            // 3. 介于两者之间 (1-4题)
+            else {
+                iconEl.innerHTML = '<i class="fa-solid fa-heart-crack"></i>';
+                iconEl.style.color = '#e91e63';
+                titleEl.innerText = '谢谢惠顾';
+                titleEl.style.color = '#666';
+                textEl.innerText = '介于全对和全错之间，本次问答谢谢参与啦~';
+            }
+        }
+    </script>
+</body>
+</html>
